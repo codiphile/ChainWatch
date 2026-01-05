@@ -153,7 +153,7 @@ graph TB
     subgraph "API Endpoints"
         Health[GET /health]
         Regions[GET /regions]
-        Analyze[POST /analyze/{region}]
+        Analyze["POST /analyze/{region}"]
         GetState[GET /state]
         StateSummary[GET /state/summary]
         Chat[POST /chat]

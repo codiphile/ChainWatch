@@ -1,14 +1,15 @@
 import random
+from typing import Optional
 from backend.agents.base import BaseAgent
 from backend.models.schemas import PortRiskOutput
 from backend.config import get_settings
+from backend.services.ais_service import AISStreamService
 
 
 class PortAgent(BaseAgent):
-    """Agent for assessing port congestion risks using mock/static data."""
+    """Agent for assessing port congestion risks using real-time AIS data."""
 
-    # Static port congestion data for demo
-    # In production, this would come from AIS data, port APIs, etc.
+    # Fallback mock data if AIS Stream is unavailable
     MOCK_PORT_DATA = {
         "Shanghai": {
             "base_congestion": "moderate",
@@ -36,72 +37,104 @@ class PortAgent(BaseAgent):
     def __init__(self):
         super().__init__(name="Port Risk Agent")
         self.settings = get_settings()
+        self.ais_service = AISStreamService()
+
+    def _calculate_severity_from_vessels(self, vessel_count: int, stationary_count: int) -> int:
+        """
+        Calculate severity based on vessel count and stationary vessels.
+        
+        Congestion model:
+        - 0-10 vessels: Low (1-2)
+        - 11-25 vessels: Moderate (3)
+        - 26-50 vessels: High (4)
+        - 50+ vessels: Critical (5)
+        
+        Adjust severity up if many vessels are stationary (waiting/anchored)
+        """
+        base_severity = 1
+        
+        if vessel_count >= 50:
+            base_severity = 5
+        elif vessel_count >= 26:
+            base_severity = 4
+        elif vessel_count >= 11:
+            base_severity = 3
+        elif vessel_count >= 5:
+            base_severity = 2
+        else:
+            base_severity = 1
+        
+        # Increase severity if many vessels are stationary (indicates congestion)
+        if vessel_count > 0:
+            stationary_ratio = stationary_count / vessel_count
+            if stationary_ratio > 0.6 and base_severity < 5:
+                base_severity += 1
+        
+        return min(5, base_severity)
 
     def _get_congestion_level(self, severity: int) -> str:
         """Map severity to congestion level."""
-        if severity <= 1:
+        if severity <= 2:
             return "low"
-        elif severity <= 2:
-            return "low"
-        elif severity <= 3:
+        elif severity == 3:
             return "moderate"
-        elif severity <= 4:
+        elif severity == 4:
             return "high"
         else:
             return "critical"
 
-    async def run(self, region: str) -> dict:
-        """
-        Assess port congestion risk for a region.
+    def _estimate_delay_from_congestion(self, severity: int, vessel_count: int) -> float:
+        """Estimate average delay based on congestion severity and vessel count."""
+        # Base delay hours per severity level
+        base_delays = {1: 3, 2: 12, 3: 36, 4: 72, 5: 120}
+        base_delay = base_delays.get(severity, 24)
+        
+        # Add variability based on vessel count
+        if vessel_count > 40:
+            base_delay *= 1.5
+        elif vessel_count > 20:
+            base_delay *= 1.2
+        
+        # Add some realistic variation
+        variation = random.uniform(0.8, 1.2)
+        return base_delay * variation
 
-        Args:
-            region: Region to analyze
+    async def _get_real_port_data(self, region: str) -> Optional[dict]:
+        """Attempt to get real port data from AIS Stream."""
+        try:
+            metrics = await self.ais_service.get_port_congestion(region)
+            return metrics
+        except Exception as e:
+            print(f"Failed to get AIS data for {region}: {str(e)}")
+            return None
 
-        Returns:
-            dict with PortRiskOutput fields
-        """
+    async def _use_mock_data(self, region: str) -> dict:
+        """Generate mock data as fallback."""
         port_data = self.MOCK_PORT_DATA.get(region)
 
         if not port_data:
-            # Unknown region - return neutral assessment
             return PortRiskOutput(
                 congestion_level="low",
                 severity=1,
                 details=f"No port data available for {region}.",
                 vessel_queue=None,
                 avg_delay_hours=None,
-            ).model_dump()
+            )
 
-        # Simulate some variability for demo purposes
-        # In production, this would be real-time data
         severity = port_data["base_severity"]
-
-        # Add small random variation for demo realism (+/- 1)
         severity_variation = random.choice([-1, 0, 0, 0, 1])
         severity = max(1, min(5, severity + severity_variation))
 
         vessel_queue = random.randint(*port_data["vessel_queue_range"])
         avg_delay = random.uniform(*port_data["avg_delay_range"])
 
-        # Adjust severity based on simulated conditions
-        if vessel_queue > 40:
-            severity = max(severity, 4)
-        if avg_delay > 96:
-            severity = max(severity, 4)
-
         congestion_level = self._get_congestion_level(severity)
 
-        # Build detailed description
         details = (
-            f"{port_data['description']}. "
-            f"Vessel queue: {vessel_queue} ships. "
-            f"Average delay: {avg_delay:.0f} hours."
+            f"{port_data['description']} (using estimated data). "
+            f"Estimated vessel queue: {vessel_queue} ships. "
+            f"Estimated average delay: {avg_delay:.0f} hours."
         )
-
-        if severity >= 4:
-            details += " Significant delays expected for incoming cargo."
-        elif severity >= 3:
-            details += " Some delays possible for cargo operations."
 
         return PortRiskOutput(
             congestion_level=congestion_level,
@@ -109,4 +142,59 @@ class PortAgent(BaseAgent):
             details=details,
             vessel_queue=vessel_queue,
             avg_delay_hours=round(avg_delay, 1),
-        ).model_dump()
+        )
+
+    async def run(self, region: str) -> dict:
+        """
+        Assess port congestion risk for a region using real-time AIS data.
+
+        Args:
+            region: Region to analyze
+
+        Returns:
+            dict with PortRiskOutput fields
+        """
+        # Try to get real AIS data
+        ais_metrics = await self._get_real_port_data(region)
+
+        # Fallback to mock data if AIS unavailable
+        if ais_metrics is None or ais_metrics.get("error"):
+            print(f"Using mock data for {region} - AIS Stream unavailable")
+            return await self._use_mock_data(region)
+
+        # Process real AIS data
+        vessel_count = ais_metrics.get("vessel_count", 0)
+        stationary_count = ais_metrics.get("stationary_count", 0)
+        avg_speed = ais_metrics.get("avg_speed", 0)
+
+        # Calculate severity and congestion
+        severity = self._calculate_severity_from_vessels(vessel_count, stationary_count)
+        congestion_level = self._get_congestion_level(severity)
+        avg_delay = self._estimate_delay_from_congestion(severity, vessel_count)
+
+        # Build detailed description
+        port_name = self.settings.regions.get(region, {}).get("port", region)
+        
+        details = (
+            f"{port_name} has {vessel_count} vessels in the area. "
+            f"{stationary_count} vessels are stationary (anchored/moored). "
+            f"Average vessel speed: {avg_speed:.1f} knots. "
+        )
+
+        if severity >= 4:
+            details += "Significant congestion detected - expect major delays for incoming cargo."
+        elif severity >= 3:
+            details += "Moderate congestion - some delays possible for cargo operations."
+        elif severity >= 2:
+            details += "Light traffic - minor delays may occur."
+        else:
+            details += "Port operating smoothly with minimal delays."
+
+        return PortRiskOutput(
+            congestion_level=congestion_level,
+            severity=severity,
+            details=details,
+            vessel_queue=vessel_count,
+            avg_delay_hours=round(avg_delay, 1),
+        )
+

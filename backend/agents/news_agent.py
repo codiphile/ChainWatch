@@ -32,7 +32,7 @@ class NewsAgent(BaseAgent):
                 severity=1,
                 summary=f"No recent supply chain news found for {region}.",
                 sources=[],
-            ).model_dump()
+            )
 
         articles = news_result["articles"]
 
@@ -47,4 +47,4 @@ class NewsAgent(BaseAgent):
             severity=classification["severity"],
             summary=classification["summary"],
             sources=sources,
-        ).model_dump()
+        )

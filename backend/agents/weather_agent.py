@@ -82,7 +82,7 @@ class WeatherAgent(BaseAgent):
                 temperature_c=None,
                 wind_speed_kmh=None,
                 rainfall_mm=None,
-            ).model_dump()
+            )
 
         current = weather_result["current"]
 
@@ -126,4 +126,4 @@ class WeatherAgent(BaseAgent):
             temperature_c=temperature,
             wind_speed_kmh=wind_speed,
             rainfall_mm=effective_rainfall,
-        ).model_dump()
+        )

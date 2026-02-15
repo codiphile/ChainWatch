@@ -84,4 +84,4 @@ class AggregationAgent(BaseAgent):
             risk_score=risk_score,
             risk_level=risk_level,
             breakdown=breakdown,
-        ).model_dump()
+        )

@@ -108,23 +108,23 @@ If no supply chain relevant news is found, return event_type "none" with severit
         context = f"""Region: {region}
 
 NEWS RISK:
-- Event Type: {news_risk.get('event_type', 'N/A') if news_risk else 'N/A'}
-- Severity: {news_risk.get('severity', 'N/A') if news_risk else 'N/A'}/5
-- Summary: {news_risk.get('summary', 'N/A') if news_risk else 'N/A'}
+- Event Type: {getattr(news_risk, 'event_type', 'N/A') if news_risk else 'N/A'}
+- Severity: {getattr(news_risk, 'severity', 'N/A') if news_risk else 'N/A'}/5
+- Summary: {getattr(news_risk, 'summary', 'N/A') if news_risk else 'N/A'}
 
 WEATHER RISK:
-- Condition: {weather_risk.get('weather_condition', 'N/A') if weather_risk else 'N/A'}
-- Severity: {weather_risk.get('severity', 'N/A') if weather_risk else 'N/A'}/5
-- Details: {weather_risk.get('details', 'N/A') if weather_risk else 'N/A'}
+- Condition: {getattr(weather_risk, 'weather_condition', 'N/A') if weather_risk else 'N/A'}
+- Severity: {getattr(weather_risk, 'severity', 'N/A') if weather_risk else 'N/A'}/5
+- Details: {getattr(weather_risk, 'details', 'N/A') if weather_risk else 'N/A'}
 
 PORT RISK:
-- Congestion Level: {port_risk.get('congestion_level', 'N/A') if port_risk else 'N/A'}
-- Severity: {port_risk.get('severity', 'N/A') if port_risk else 'N/A'}/5
-- Details: {port_risk.get('details', 'N/A') if port_risk else 'N/A'}
+- Congestion Level: {getattr(port_risk, 'congestion_level', 'N/A') if port_risk else 'N/A'}
+- Severity: {getattr(port_risk, 'severity', 'N/A') if port_risk else 'N/A'}/5
+- Details: {getattr(port_risk, 'details', 'N/A') if port_risk else 'N/A'}
 
 OVERALL RISK:
-- Risk Score: {aggregated_risk.get('risk_score', 'N/A') if aggregated_risk else 'N/A'}/5
-- Risk Level: {aggregated_risk.get('risk_level', 'N/A') if aggregated_risk else 'N/A'}"""
+- Risk Score: {getattr(aggregated_risk, 'risk_score', 'N/A') if aggregated_risk else 'N/A'}/5
+- Risk Level: {getattr(aggregated_risk, 'risk_level', 'N/A') if aggregated_risk else 'N/A'}"""
 
         prompt = f"""Based on the following supply chain risk assessment data, generate a clear, concise explanation for a business stakeholder.
 

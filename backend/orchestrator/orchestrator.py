@@ -71,9 +71,9 @@ class Orchestrator:
             # Step 4: Risk Aggregation Agent
             aggregation_result = await self.aggregation_agent.run(
                 region=region,
-                news_severity=news_result.get("severity", 1),
-                weather_severity=weather_result.get("severity", 1),
-                port_severity=port_result.get("severity", 1),
+                news_severity=news_result.severity,
+                weather_severity=weather_result.severity,
+                port_severity=port_result.severity,
             )
             state.aggregated_risk = aggregation_result
 
